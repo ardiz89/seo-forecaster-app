@@ -470,169 +470,190 @@ if gsc_file:
                     except Exception as e:
                         st.error(f"Errore durante l'eliminazione: {e}")
             
-            try:
-                # We want to save EDITS (typing), but not persist the "seleziona" column forever in session state events.
-                state_df = edited_df.copy()
-                if "seleziona" in state_df.columns:
-                    state_df = state_df.drop(columns=["seleziona"])
+            # Sync back to session state logic (MANUAL SAVE to fix Reload Bug)
+            if st.button("💾 Salva Modifiche", type="primary", help="Clicca per confermare le modifiche alla tabella."):
+                try:
+                    # We want to save EDITS (typing), but not persist the "seleziona" column forever in session state events.
+                    state_df = edited_df.copy()
+                    if "seleziona" in state_df.columns:
+                        state_df = state_df.drop(columns=["seleziona"])
+                        
+                    state_df['date'] = pd.to_datetime(state_df['date'])
+                    state_df['type'] = state_df['type'].fillna('window')
+                    state_df['impact'] = state_df['impact'].fillna(0.0)
+                    state_df['duration'] = state_df['duration'].fillna(1).astype(int)
                     
-                state_df['date'] = pd.to_datetime(state_df['date'])
-                state_df['type'] = state_df['type'].fillna('window')
-                state_df['impact'] = state_df['impact'].fillna(0.0)
-                state_df['duration'] = state_df['duration'].fillna(1).astype(int)
-                
-                st.session_state.events = state_df.to_dict('records')
-            except Exception as e:
-                pass 
+                    st.session_state.events = state_df.to_dict('records')
+                    st.success("Modifiche salvate con successo!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Errore durante il salvataggio: {e}") 
 
     # --- GENERATOR TAB ---
     with tab_generator:
         st.markdown("### 🪄 Generatore Automatico Pacchetti")
         st.caption("Crea scenari complessi selezionando i servizi commerciali venduti. Compila i campi per generare automaticamente gli eventi nel grafico.")
 
-        with st.form("prospecting_form"):
-            col_c1, col_c2, col_c3 = st.columns(3)
-            with col_c1:
-                contract_name = st.text_input("Nome Contratto/Progetto", placeholder="es. Cliente Alpha 2026")
-            with col_c2:
-                default_start = pd.Timestamp.today().date().replace(day=1)
-                contract_start = st.date_input("Data Inizio Contratto", value=default_start)
-            with col_c3:
-                contract_months = st.number_input("Durata (Mesi)", min_value=1, max_value=36, value=12)
-            
-            st.divider()
-            
-            # Setup
-            st.markdown("#### 1. Setup Iniziale")
-            st.info("""
-            **Scegli il livello di setup iniziale:**
-            *   **Lite**: Include solo fix tecnici essenziali (bloccanti).
-            *   **Full**: Include audit tecnico completo e riorganizzazione contenuti.
-            *   **Strategy**: Include tutto il Full + Definizione piano editoriale strategico (spinta iniziale più forte).
-            """)
-            setup_mode = st.radio("Pacchetto Setup", ["nessuno", "lite", "full", "strategy"], 
-                                  format_func=lambda x: {
-                                      "nessuno": "Nessuno",
-                                      "lite": "Setup SEO Lite (Tech Fix)",
-                                      "full": "Setup SEO Full (Tech + Audit)",
-                                      "strategy": "Setup + Content Strategy"
-                                  }[x], horizontal=True)
-            
-            st.divider()
-            
-            # Monthly Packages
-            st.markdown("#### 2. Servizi Ricorrenti")
-            
-            # CONTENT
-            with st.expander("📝 Content Marketing", expanded=True):
-                st.markdown("""
-                **Configura la produzione contenuti:**
-                *   **Pacchetto:** Definisce la frequenza di *ottimizzazione/aggiornamento* dei vecchi contenuti (Trimestrale per Basic, Mensile per Plus/Auth).
-                *   **Quantità:** Indica quanti *nuovi* articoli/pagine vengono pubblicati al mese.
-                """)
-                col_cnt1, col_cnt2 = st.columns([2, 1])
-                with col_cnt1:
-                    content_mode = st.selectbox("Pacchetto Manutenzione Content", ["none", "basic", "plus", "authority"], 
-                                              format_func=lambda x: {
-                                                  "none": "Nessuno",
-                                                  "basic": "Basic (Update Trimestrale)",
-                                                  "plus": "Plus (Update Mensile)",
-                                                  "authority": "Authority (Update Mensile Aggressivo)"
-                                              }[x])
-                with col_cnt2:
-                    content_quantity = st.number_input("Nuovi Articoli / Mese", min_value=0, max_value=100, value=4, help="Numero di nuovi contenuti pubblicati mensilmente.")
-                
-                c_start, c_end = st.slider("Periodo Attivazione Content (Mesi)", 1, 36, (1, 12), key="range_content", help="Seleziona in quali mesi del contratto è attivo il servizio content.")
-            
-            # LINK BUILDING
-            with st.expander("🔗 Link Building", expanded=False):
-                st.markdown("""
-                **Configura l'acquisizione link:**
-                *   **Pacchetto:** Definisce la tipologia/strategia (Basic=Standard, Growth=High Impact, Authority=High Volume).
-                *   **Quantità:** Indica il numero di link acquisiti mensilmente.
-                """)
-                col_lnk1, col_lnk2 = st.columns([2, 1])
-                with col_lnk1:
-                    link_mode = st.selectbox("Tipologia Link Building", ["none", "basic", "growth", "authority"],
-                                           format_func=lambda x: {
-                                               "none": "Nessuno",
-                                               "basic": "Basic (Standard)",
-                                               "growth": "Growth (Alto Impatto)",
-                                               "authority": "Authority (Volume & Impatto)"
-                                           }[x])
-                with col_lnk2:
-                    link_quantity = st.number_input("Numero Link / Mese", min_value=0, max_value=50, value=2, help="Numero di link acquisiti mensilmente.")
-                
-                l_start, l_end = st.slider("Periodo Attivazione Link (Mesi)", 1, 36, (1, 12), key="range_link")
+        st.markdown("### 🪄 Generatore Automatico Pacchetti")
+        st.caption("Crea scenari complessi selezionando i servizi commerciali venduti. Compila i campi per generare automaticamente gli eventi nel grafico.")
 
-            # TECH & ONPAGE
-            with st.expander("⚙️ Technical & On-Page", expanded=False):
-                st.markdown("**Manutenzione Tecnica e Ottimizzazione:**")
-                tech_mode = st.selectbox("Manutenzione Tecnica", ["none", "care"], 
-                                       format_func=lambda x: {"none": "Nessuna", "care": "Technical Care (Interventi Trimestrali)"}[x],
-                                       help="Se attivo, aggiunge un evento di fix tecnico ogni 3 mesi.")
-                
-                col_op1, col_op2 = st.columns(2)
-                with col_op1:
-                    onpage_active = st.checkbox("On-Page Optimization (Mensile)", help="Ottimizzazione continua dei metadati e struttura.")
-                    onpage_range = st.slider("Mesi On-Page", 1, 36, (1, 12), disabled=not onpage_active)
-                with col_op2:
-                    local_active = st.checkbox("Local / Listing SEO (Mensile)", help="Gestione schede GMB e directory locali.")
-                    local_range = st.slider("Mesi Local", 1, 36, (1, 12), disabled=not local_active)
+        # REMOVED st.form to allow dynamic interactions (enabling/disabling fields)
+        
+        col_c1, col_c2, col_c3 = st.columns(3)
+        with col_c1:
+            contract_name = st.text_input("Nome Contratto/Progetto", placeholder="es. Cliente Alpha 2026")
+        with col_c2:
+            default_start = pd.Timestamp.today().date().replace(day=1)
+            contract_start = st.date_input("Data Inizio Contratto", value=default_start)
+        with col_c3:
+            contract_months = st.number_input("Durata (Mesi)", min_value=1, max_value=36, value=12)
+        
+        st.divider()
+        
+        # Setup
+        st.markdown("#### 1. Setup Iniziale")
+        st.info("""
+        **Scegli il livello di setup iniziale:**
+        *   **Lite**: Include solo fix tecnici essenziali (bloccanti).
+        *   **Full**: Include audit tecnico completo e riorganizzazione contenuti.
+        *   **Strategy**: Include tutto il Full + Definizione piano editoriale strategico (spinta iniziale più forte).
+        """)
+        setup_mode = st.radio("Pacchetto Setup", ["nessuno", "lite", "full", "strategy"], 
+                              format_func=lambda x: {
+                                  "nessuno": "Nessuno",
+                                  "lite": "Setup SEO Lite (Tech Fix)",
+                                  "full": "Setup SEO Full (Tech + Audit)",
+                                  "strategy": "Setup + Content Strategy"
+                              }[x], horizontal=True)
+        
+        st.divider()
+        
+        # Monthly Packages
+        st.markdown("#### 2. Servizi Ricorrenti")
+        
+        # CONTENT
+        with st.expander("📝 Content Marketing", expanded=True):
+            st.markdown("**Configura il servizio Content Marketing:**")
+            col_cnt1, col_cnt2 = st.columns([1, 2])
+            with col_cnt1:
+                content_active = st.checkbox("Attiva Content Marketing", value=True)
+            with col_cnt2:
+                 content_impact = st.number_input("Efficacia Stimata (% Incremento Traffico)", min_value=0.0, max_value=500.0, value=15.0, step=0.5, disabled=not content_active, help="Stima percentuale dell'impatto positivo totale generato dai contenuti alla fine del periodo.")
+            
+            c_start, c_end = st.slider("Periodo Attivazione Content (Mesi)", 1, 36, (1, 12), key="range_content", disabled=not content_active)
+        
+        # LINK BUILDING
+        with st.expander("🔗 Link Building", expanded=False):
+            st.markdown("**Configura il servizio Link Building:**")
+            col_lnk1, col_lnk2 = st.columns([1, 2])
+            with col_lnk1:
+                link_active = st.checkbox("Attiva Link Building", value=False)
+            with col_lnk2:
+                link_impact = st.number_input("Efficacia Stimata (% Incremento Traffico)", min_value=0.0, max_value=500.0, value=20.0, step=0.5, disabled=not link_active, help="Stima percentuale dell'impatto positivo totale generato dai link alla fine del periodo.")
+            
+            l_start, l_end = st.slider("Periodo Attivazione Link (Mesi)", 1, 36, (1, 12), key="range_link", disabled=not link_active)
 
-            st.divider()
-            st.markdown("#### 3. Eventi Speciali")
-            st.caption("Seleziona eventi una tantum che impattano la strategia.")
+        # TECH & ONPAGE
+        with st.expander("⚙️ Technical & On-Page", expanded=False):
+            st.markdown("**Manutenzione Tecnica e Ottimizzazione:**")
+            tech_mode = st.selectbox("Manutenzione Tecnica", ["none", "care"], 
+                                   format_func=lambda x: {"none": "Nessuna", "care": "Technical Care (Interventi Trimestrali)"}[x],
+                                   help="Se attivo, aggiunge un evento di fix tecnico ogni 3 mesi.")
             
-            col_ex1, col_ex2 = st.columns(2)
-            with col_ex1:
-                migr_active = st.checkbox("Migrazione / Replatform")
-                migr_month = st.number_input("Mese Migrazione", 1, 36, 6, disabled=not migr_active, help="Mese in cui avviene il cambio dominio/CMS.")
-            
-            with col_ex2:
-                revamp_active = st.checkbox("Mega Content Revamp")
-                revamp_month = st.number_input("Mese Revamp", 1, 36, 3, disabled=not revamp_active, help="Intervento massivo di riscrittura contenuti.")
-                
-            adv_active = st.checkbox("Campagna Brand/ADV")
-            adv_month = st.number_input("Mese Inizio Campagna", 1, 36, 1, disabled=not adv_active, help="Campagna paid che potrebbe portare traffico diretto/brand.")
+            col_op1, col_op2 = st.columns(2)
+            with col_op1:
+                onpage_active = st.checkbox("On-Page Optimization (Mensile)", help="Ottimizzazione continua dei metadati e struttura.")
+                onpage_range = st.slider("Mesi On-Page", 1, 36, (1, 12), disabled=not onpage_active)
+            with col_op2:
+                local_active = st.checkbox("Local / Listing SEO (Mensile)", help="Gestione schede GMB e directory locali.")
+                local_range = st.slider("Mesi Local", 1, 36, (1, 12), disabled=not local_active)
 
-            submitted = st.form_submit_button("🚀 Genera Scenario Regressori")
+        st.divider()
+        st.markdown("#### 3. Eventi Speciali")
+        st.caption("Seleziona eventi una tantum e definisci il loro impatto specifico.")
+        
+        # MIGRATION
+        migr_active = st.checkbox("Migrazione / Replatform")
+        if migr_active:
+            st.markdown("--- *Configurazione Migrazione* ---")
+            col_mig1, col_mig2, col_mig3 = st.columns(3)
+            with col_mig1:
+                migr_month = st.number_input("Mese Migrazione", 1, 36, 6)
+            with col_mig2:
+                migr_drop = st.number_input("Calo Iniziale (%)", min_value=0.0, max_value=100.0, value=10.0, help="Perdita di traffico prevista nei mesi successivi al go-live.")
+            with col_mig3:
+                migr_growth = st.number_input("Recupero/Crescita (%)", min_value=-100.0, max_value=500.0, value=15.0, help="Incremento del traffico previsto a regime (entro fine contratto).")
+        
+        # REVAMP
+        revamp_active = st.checkbox("Mega Content Revamp")
+        if revamp_active:
+            st.markdown("--- *Configurazione Revamp* ---")
+            col_rev1, col_rev2 = st.columns(2)
+            with col_rev1:
+                revamp_month = st.number_input("Mese Revamp", 1, 36, 3)
+            with col_rev2:
+                revamp_impact = st.number_input("Boost Totale (%)", min_value=0.0, max_value=500.0, value=20.0, help="Incremento incrementale del traffico generato dal revamp.")
             
-            if submitted:
-                # Build form data dict
-                form_data = {
-                    "contract_start_date": contract_start,
-                    "contract_months": contract_months,
-                    "setup_mode": setup_mode,
-                    "content_mode": content_mode,
-                    "content_months": (c_start, c_end),
-                    "content_quantity": content_quantity,
-                    "link_mode": link_mode,
-                    "link_months": (l_start, l_end),
-                    "link_quantity": link_quantity,
-                    "tech_mode": tech_mode,
-                    "tech_months": (1, contract_months), 
-                    "onpage_enabled": onpage_active,
-                    "onpage_months": onpage_range,
-                    "local_enabled": local_active,
-                    "local_months": local_range,
-                    "extra_events": []
-                }
+        # ADV
+        adv_active = st.checkbox("Campagna Brand/ADV")
+        if adv_active:
+             adv_month = st.number_input("Mese Inizio Campagna", 1, 36, 1)
+
+        st.divider()
+
+        # Submit Button (Outside Form)
+        if st.button("🚀 Genera Scenario Regressori", type="primary"):
+            # Build form data dict
+            form_data = {
+                "contract_start_date": contract_start,
+                "contract_months": contract_months,
+                "setup_mode": setup_mode,
                 
-                if migr_active:
-                    form_data['extra_events'].append({'type': 'migration', 'month': migr_month})
-                if revamp_active:
-                    form_data['extra_events'].append({'type': 'revamp', 'month': revamp_month})
-                if adv_active:
-                    form_data['extra_events'].append({'type': 'campaign', 'month': adv_month, 'name': 'Campagna Brand'})
+                # Content
+                "content_enabled": content_active,
+                "content_months": (c_start, c_end) if content_active else (1,1),
+                "content_impact_total": content_impact if content_active else 0,
                 
-                # Generate
-                new_events = generate_prospecting_events(form_data)
+                # Link
+                "link_enabled": link_active,
+                "link_months": (l_start, l_end) if link_active else (1,1),
+                "link_impact_total": link_impact if link_active else 0,
                 
-                # Replace events
-                st.session_state.events = new_events
-                st.success(f"Generati {len(new_events)} eventi! Verifica nel tab 'Editor Manuale'.")
-                st.rerun()
+                # Tech
+                "tech_mode": tech_mode,
+                "tech_months": (1, contract_months), 
+                "onpage_enabled": onpage_active,
+                "onpage_months": onpage_range if onpage_active else (1,1),
+                "local_enabled": local_active,
+                "local_months": local_range if local_active else (1,1),
+                
+                # Extras
+                "extra_events": []
+            }
+            
+            if migr_active:
+                form_data['extra_events'].append({
+                    'type': 'migration', 
+                    'month': migr_month,
+                    'drop_pct': migr_drop,
+                    'growth_pct': migr_growth
+                })
+            if revamp_active:
+                form_data['extra_events'].append({
+                    'type': 'revamp', 
+                    'month': revamp_month,
+                    'growth_pct': revamp_impact
+                })
+            if adv_active:
+                form_data['extra_events'].append({'type': 'campaign', 'month': adv_month, 'name': 'Campagna Brand'})
+            
+            # Generate
+            new_events = generate_prospecting_events(form_data)
+            
+            # Replace events
+            st.session_state.events = new_events
+            st.success(f"Generati {len(new_events)} eventi! Verifica nel tab 'Editor Manuale'.")
+            st.rerun()
 
     st.info(f"ℹ️ Regressori Attivi: {len(st.session_state.events)}")
     
