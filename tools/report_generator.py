@@ -1,9 +1,5 @@
 import os
 from openai import OpenAI
-from dotenv import load_dotenv
-
-# Load env immediately
-load_dotenv()
 
 
 def get_openai_client(api_key=None):
