@@ -20,9 +20,9 @@ def get_openai_client(api_key=None):
     except Exception as e:
         return None, str(e)
 
-def generate_marketing_report(metrics, events, horizon, forecast_df=None, api_key=None):
+def generate_marketing_report(metrics, events, horizon, forecast_df=None, api_key=None, model="gpt-5.1", system_instruction=None):
     """
-    Generates a marketing report using GPT-5.1.
+    Generates a marketing report using the specified model and system instruction.
     """
     client, error = get_openai_client(api_key)
     if not client:
@@ -37,14 +37,14 @@ def generate_marketing_report(metrics, events, horizon, forecast_df=None, api_ke
     if forecast_df is not None:
          # Get last 30 days of forecast
          future = forecast_df.tail(30)
-         trend_dir = "In crescita" if future['yhat'].iloc[-1] > future['yhat'].iloc[0] else "In calo"
-         trend_txt = f"Trend ultimi 30gg: {trend_dir}."
+         if len(future) > 1:
+             trend_dir = "In crescita" if future['yhat'].iloc[-1] > future['yhat'].iloc[0] else "In calo"
+             trend_txt = f"Trend ultimi 30gg: {trend_dir}."
+         else:
+             trend_txt = "Dati insufficienti per trend."
 
-    # Prompt
-    prompt = f"""
-    Sei un Senior SEO Strategist e Data Analyst.
-    Il tuo compito è analizzare i dati di un forecast di traffico organico e generare un report sintetico e persuasivo per un PROSPECT (potenziale cliente).
-    
+    # Data Context Block
+    data_context = f"""
     DATI FORECAST (Orizzonte {horizon} giorni):
     - Media Storica Giornaliera: {metrics.get('historical_mean', 0):.0f} click
     - Media Forecast Giornaliera: {metrics.get('forecast_mean', 0):.0f} click
@@ -56,28 +56,30 @@ def generate_marketing_report(metrics, events, horizon, forecast_df=None, api_ke
     
     EVENTI/SCENARI INCLUSI NEL CALCOLO:
     {events_summary}
-    
-    ISTRUZIONI:
-    1. Scrivi un report in Markdown.
-    2. Tono: Professionale, Proattivo, Orientato al Business (non troppo tecnico).
-    3. Struttura:
-       - **Executive Summary**: Il dato chiave (crescita o calo previsto).
-       - **Analisi dello Scenario**: Come gli eventi inseriti stanno influenzando il futuro.
-       - **Affidabilità**: Spiega brevemente se possiamo fidarci del dato (basandosi sul MAPE).
-       - **Next Steps**: Consigli strategici (inventa basandoti sui dati: se cala, proponi audit; se cresce, proponi content strategy).
-    
-    IMPORTANTE:
-    - Usa il modello 'gpt-5.1'.
-    - Sii sintetico ma convincente.
     """
+
+    # Default System Instruction if not provided
+    if not system_instruction:
+        system_instruction = """Sei un Senior SEO Strategist e Data Analyst.
+Il tuo compito è analizzare i dati di un forecast di traffico organico e generare un report sintetico e persuasivo per un PROSPECT (potenziale cliente).
+
+ISTRUZIONI OUTPUT:
+1. Scrivi un report in Markdown.
+2. Tono: Professionale, Proattivo, Orientato al Business (non troppo tecnico).
+3. Struttura OBBLIGATORIA:
+   - **Executive Summary**: Il dato chiave (crescita o calo previsto).
+   - **Analisi dello Scenario**: Come gli eventi inseriti stanno influenzando il futuro.
+   - **Affidabilità**: Spiega brevemente se possiamo fidarci del dato (basandosi sul MAPE).
+   - **Next Steps**: Consigli strategici (inventa basandoti sui dati: se cala, proponi audit; se cresce, proponi content strategy).
+
+Sii sintetico ma convincente."""
 
     try:
         response = client.chat.completions.create(
-            # model="gpt-4o",  # Fallback (Commented out to avoid syntax error)
-            model="gpt-5.1",  # User requested specifically gpt-5.1
+            model=model,
             messages=[
-                {"role": "system", "content": "Sei un assistente SEO esperto."},
-                {"role": "user", "content": prompt}
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": f"Ecco i dati del forecast:\n{data_context}\n\nGenera il report seguendo le istruzioni."}
             ],
             temperature=0.7
         )

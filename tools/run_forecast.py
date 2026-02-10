@@ -227,6 +227,19 @@ def execute_forecast(history_df, events, config):
     delta_abs = forecast_mean - hist_mean
     delta_perc = (delta_abs / hist_mean) * 100 if hist_mean != 0 else 0
     
+    # Calculate Monthly Aggregates (Future)
+    future_df = forecast.loc[future_mask].copy()
+    monthly_data = []
+    if not future_df.empty:
+        future_df['month'] = future_df['ds'].dt.to_period('M')
+        # Group by month
+        m_grouped = future_df.groupby('month')['yhat'].agg(['mean', 'sum']).reset_index()
+        m_grouped['month'] = m_grouped['month'].astype(str)
+        # Round values
+        m_grouped['mean'] = m_grouped['mean'].round(1)
+        m_grouped['sum'] = m_grouped['sum'].round(1)
+        monthly_data = m_grouped.to_dict('records')
+    
     return {
         "forecast": forecast,
         "model": m,
@@ -237,7 +250,8 @@ def execute_forecast(history_df, events, config):
             "delta_perc": delta_perc,
             "mape": perf_metrics['mape'],
             "rmse": perf_metrics['rmse'],
-            "mae": perf_metrics['mae']
+            "mae": perf_metrics['mae'],
+            "monthly_data": monthly_data
         },
         "debug_info": debug_info
     }
